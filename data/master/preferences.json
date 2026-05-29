@@ -1,0 +1,46 @@
+{
+  "target_roles": {
+    "titles": [],
+    "locations": [],
+    "remote_ok": true,
+    "hybrid_ok": true,
+    "onsite_ok": false
+  },
+  "salary": {
+    "minimum": 0,
+    "target": 0,
+    "currency": "USD"
+  },
+  "filters": {
+    "must_have_keywords": [],
+    "dealbreaker_keywords": [],
+    "min_company_size": 0,
+    "max_commute_miles": 0
+  },
+  "scoring": {
+    "min_score_to_apply": 70,
+    "weights": {
+      "title_match": 0.3,
+      "skills_match": 0.3,
+      "location_match": 0.15,
+      "salary_match": 0.15,
+      "company_quality": 0.1
+    }
+  },
+  "automation": {
+    "auto_apply": true,
+    "auto_followup": true,
+    "followup_day_3": true,
+    "followup_day_7": true,
+    "followup_day_14": false,
+    "daily_digest_telegram": true
+  },
+  "job_boards": {
+    "linkedin": true,
+    "indeed": true,
+    "builtin": true,
+    "wellfound": true,
+    "glassdoor": false,
+    "remote_ok": true
+  }
+}

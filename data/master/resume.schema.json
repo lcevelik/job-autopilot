@@ -1,0 +1,44 @@
+{
+  "personal": {
+    "name": "",
+    "email": "",
+    "phone": "",
+    "location": "",
+    "linkedin": "",
+    "github": "",
+    "website": ""
+  },
+  "summary_templates": {
+    "default": "",
+    "engineering": "",
+    "ai_ml": "",
+    "management": ""
+  },
+  "experience": [
+    {
+      "company": "",
+      "title": "",
+      "start": "",
+      "end": "",
+      "bullets": {
+        "default": [],
+        "engineering": [],
+        "ai_ml": [],
+        "management": []
+      },
+      "technologies": []
+    }
+  ],
+  "skills": {
+    "all": [],
+    "categories": {
+      "languages": [],
+      "frameworks": [],
+      "cloud": [],
+      "ai_ml": [],
+      "tools": []
+    }
+  },
+  "education": [],
+  "certifications": []
+}

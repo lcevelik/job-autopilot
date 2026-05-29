@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+venv/
+.venv/
+
+# Data (user-specific, don't commit)
+data/master/resume.json
+data/applications/
+data/jobs/*.json
+
+# Secrets
+*.env
+*.secret
+*.key
+*.pem
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# n8n exports (large)
+workflows/*.json
+!workflows/.gitkeep
+
+# Generated PDFs
+output/
+*.pdf
