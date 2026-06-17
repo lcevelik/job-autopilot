@@ -1,6 +1,7 @@
 import os
 import json
 from openai import OpenAI
+import httpx
 
 # Load OpenRouter API key
 # In production, use os.getenv("OPENROUTER_API_KEY")
@@ -44,6 +45,7 @@ def tailor_resume(master_resume_path: str, job_description: str, role_template: 
     client = OpenAI(
         base_url="https://openrouter.ai/api/v1",
         api_key=api_key,
+        timeout=httpx.Timeout(60.0, connect=10.0),
     )
     
     # Load master resume
@@ -123,6 +125,7 @@ def generate_cover_letter(master_resume_path: str, job_description: str, company
     client = OpenAI(
         base_url="https://openrouter.ai/api/v1",
         api_key=api_key,
+        timeout=httpx.Timeout(60.0, connect=10.0),
     )
     
     with open(master_resume_path) as f:

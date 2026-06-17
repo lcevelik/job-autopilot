@@ -21,15 +21,15 @@ AI-powered job application automation — tailored resumes, auto-apply, tracking
 ## To Do
 
 ### Phase 1: Data Layer
-- [ ] Parse user resume into structured JSON master data
-- [ ] Create job board scraper (LinkedIn, Indeed, BuiltIn, Wellfound)
+- [x] Parse user resume into structured JSON master data
+- [x] Create job board scraper (LinkedIn, Indeed, BuiltIn, Wellfound)
 - [ ] Set up Google Sheet tracker (Company, Role, Date, Status, Follow-up)
 - [ ] Create n8n connection and API key storage
 
 ### Phase 2: AI Engine
-- [ ] Job analyzer — extract requirements, keywords, seniority from JD
-- [ ] Resume tailor — rewrite summary, bullets, skills order per JD
-- [ ] Cover letter generator — 3-paragraph tailored version
+- [x] Job analyzer — extract requirements, keywords, seniority from JD
+- [x] Resume tailor — rewrite summary, bullets, skills order per JD
+- [x] Cover letter generator — 3-paragraph tailored version
 - [ ] ATS keyword optimizer — inject exact JD phrases
 - [ ] PDF generator — clean, ATS-friendly output per application
 
