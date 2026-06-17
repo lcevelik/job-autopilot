@@ -14,9 +14,9 @@ AI-powered job application automation — tailored resumes, auto-apply, tracking
 
 ## In Progress
 
-- [ ] Project setup and architecture design
-- [ ] Master resume data schema (JSON)
-- [ ] Resume tailoring engine (AI prompt chain)
+- [x] Project setup and architecture design
+- [x] Master resume data schema (JSON)
+- [x] Resume tailoring engine (AI prompt chain)
 
 ## To Do
 
