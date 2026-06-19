@@ -12,7 +12,7 @@ from src.db import (
     get_setting, get_stats,
 )
 from src.scraper.scraper import JobScraper
-from src.tailor.engine import tailor_resume, generate_cover_letter
+from src.tailor.engine import tailor_resume_scored, generate_cover_letter
 from src.generator.pdf_gen import generate_resume_pdf, generate_cover_letter_pdf
 
 MASTER_RESUME = str(Path(__file__).parent.parent / "data" / "master" / "resume.json")
@@ -143,8 +143,10 @@ def run_pipeline(keywords: str = None, location: str = None, template: str = Non
             jobs = scraper.scrape_all(kw, location, sources=sources_list, num_per_source=10)
 
             for job in jobs:
-                job_id = str(uuid.uuid4())[:8]
-                job["id"] = job_id
+                # Stable id derived from title+company so re-scraping the same job
+                # across runs hits upsert's ON CONFLICT (which preserves status) and
+                # does NOT create a duplicate or a second resume. Random UUIDs broke this.
+                job["id"] = scraper._job_key(job["title"], job["company"])
                 job["scraped_at"] = datetime.now().isoformat()
                 job["status"] = "new"
 
@@ -213,9 +215,13 @@ def run_pipeline(keywords: str = None, location: str = None, template: str = Non
                 create_application(app_id, job_id, template)
                 log(f"  Tailoring resume (app: {app_id})")
 
+                match_report = None
                 try:
-                    tailored = tailor_resume(MASTER_RESUME, description, template)
-                    log(f"  Resume tailored OK")
+                    tailored, match_report = tailor_resume_scored(MASTER_RESUME, description, template)
+                    log(f"  Resume tailored OK — match {match_report['score']} "
+                        f"(must {match_report['must_coverage']}), "
+                        f"missing {len(match_report['missing'])}, "
+                        f"fabricated {len(match_report['fabricated'])}")
                 except Exception as e:
                     log(f"  Tailor FAILED: {e}")
                     update_application(app_id, status="error", error=str(e))
@@ -234,10 +240,13 @@ def run_pipeline(keywords: str = None, location: str = None, template: str = Non
                     cover = ""
 
                 # Save application
+                import json as _json
                 update_application(
                     app_id,
                     tailored_resume=str(tailored) if tailored else None,
                     cover_letter=cover,
+                    match_score=match_report["score"] if match_report else None,
+                    match_report=_json.dumps(match_report) if match_report else None,
                     status="done",
                     completed_at=datetime.now().isoformat(),
                 )
@@ -245,7 +254,7 @@ def run_pipeline(keywords: str = None, location: str = None, template: str = Non
                 # Generate PDFs
                 try:
                     if tailored:
-                        generate_resume_pdf(tailored, app_id)
+                        generate_resume_pdf(tailored, app_id, job.get("title", ""), job.get("company", ""))
                         log(f"  Resume PDF generated")
                     if cover:
                         personal = tailored.get("personal", {}) if tailored else {}
@@ -256,6 +265,8 @@ def run_pipeline(keywords: str = None, location: str = None, template: str = Non
                             personal.get("phone", ""),
                             personal.get("location", ""),
                             app_id,
+                            job.get("title", ""),
+                            job.get("company", ""),
                         )
                         log(f"  Cover letter PDF generated")
                 except Exception as e:
@@ -296,6 +307,45 @@ def run_pipeline(keywords: str = None, location: str = None, template: str = Non
     return {"run_id": run_id, "stats": stats, "log": log_lines}
 
 
+def add_job_from_url(url: str, template: str = "default") -> dict:
+    """Build a job from a pasted job-posting URL and run it through the tailor.
+
+    Reads the JD off the page, detects title/company via the LLM, stores the job
+    with the same stable id scheme as the scraper (so re-pasting updates rather
+    than duplicates), then reuses run_single_job for the scored tailor + cover
+    letter. Returns the run_single_job result plus the detected title/company,
+    or {"error": ...} if the page couldn't be read.
+    """
+    from src.tailor.engine import extract_job_meta
+
+    scraper = JobScraper()
+    description = scraper.extract_job_description(url)
+    if not description or len(description.strip()) < 80:
+        return {"error": "Couldn't read a job description from that link — the site "
+                         "may block scraping. Try a direct posting URL."}
+
+    meta = extract_job_meta(description)
+    title = meta.get("title") or "Untitled role"
+    company = meta.get("company") or "Unknown company"
+
+    job_id = scraper._job_key(title, company)
+    upsert_job({
+        "id": job_id,
+        "title": title,
+        "company": company,
+        "location": meta.get("location", ""),
+        "url": url,
+        "source": "manual",
+        "description": description,
+        "scraped_at": datetime.now().isoformat(),
+        "status": "fetched",
+    })
+
+    result = run_single_job(job_id, template)
+    result.update({"job_id": job_id, "title": title, "company": company})
+    return result
+
+
 def run_single_job(job_id: str, template: str = "default"):
     """Process a single job through the pipeline (fetch JD → tailor → cover letter)."""
     job = get_job(job_id)
@@ -319,7 +369,7 @@ def run_single_job(job_id: str, template: str = "default"):
 
     # Tailor
     try:
-        tailored = tailor_resume(MASTER_RESUME, description, template)
+        tailored, match_report = tailor_resume_scored(MASTER_RESUME, description, template)
     except Exception as e:
         update_application(app_id, status="error", error=str(e))
         return {"error": str(e), "app_id": app_id}
@@ -330,12 +380,15 @@ def run_single_job(job_id: str, template: str = "default"):
     except Exception:
         cover = ""
 
+    import json as _json
     update_application(
         app_id,
         tailored_resume=str(tailored) if tailored else None,
         cover_letter=cover,
+        match_score=match_report["score"] if match_report else None,
+        match_report=_json.dumps(match_report) if match_report else None,
         status="done",
         completed_at=datetime.now().isoformat(),
     )
 
-    return {"app_id": app_id, "status": "done"}
+    return {"app_id": app_id, "status": "done", "match_score": match_report["score"]}

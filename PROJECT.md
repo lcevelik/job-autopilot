@@ -14,9 +14,8 @@ AI-powered job application automation — tailored resumes, auto-apply, tracking
 
 ## In Progress
 
-- [x] Project setup and architecture design
-- [x] Master resume data schema (JSON)
-- [x] Resume tailoring engine (AI prompt chain)
+- [ ] Apply to the 46 strong-fit jobs (match ≥ 0.70)
+- [ ] Improve master resume coverage of granular tool keywords (lifts match scores)
 
 ## To Do
 
@@ -30,29 +29,53 @@ AI-powered job application automation — tailored resumes, auto-apply, tracking
 - [x] Job analyzer — extract requirements, keywords, seniority from JD
 - [x] Resume tailor — rewrite summary, bullets, skills order per JD
 - [x] Cover letter generator — 3-paragraph tailored version
-- [ ] ATS keyword optimizer — inject exact JD phrases
-- [ ] PDF generator — clean, ATS-friendly output per application
+- [x] ATS keyword optimizer — scored coverage loop + deterministic fidelity strip
+- [x] PDF generator — clean ATS-friendly output, friendly Name_Title_Company.pdf names
+- [x] Match scoring per application (stored + API) — doubles as a fit-triage signal
 
-### Phase 3: Automation (n8n Workflows)
-- [ ] Workflow 1: Daily job scraper + AI scoring + Telegram digest
-- [ ] Workflow 2: Resume tailor + cover letter + PDF generation
-- [ ] Workflow 3: Auto-apply via LinkedIn Easy Apply (Playwright)
-- [ ] Workflow 4: Follow-up email sequences (day 3, day 7)
-- [ ] Workflow 5: Application tracker sync to Google Sheet
+### Phase 3: Automation
+- [x] Cron scraper every 3 days (scripts/scheduled_scrape.py)
+- [x] Cross-run dedup via stable job ids — no duplicate jobs/resumes on re-scrape
+- [x] Concurrency guard (fcntl lock) so cron/manual runs can't overlap & duplicate
+- [x] Paste-a-link → tailored resume (POST /api/pipeline/run-url, dashboard card)
+- [ ] Auto-apply via LinkedIn Easy Apply (Playwright)
+- [ ] Follow-up email sequences (day 3, day 7)
+- [ ] Application tracker sync to Google Sheet
 
 ### Phase 4: Polish
-- [ ] Dashboard — web UI showing application stats
-- [ ] A/B testing — track which resume versions get callbacks
+- [x] Dashboard — web UI (FastAPI + vanilla JS) showing application stats
+- [x] Redesigned dashboard — modern, mobile-responsive, SVG icons, match-score triage
+- [ ] Cloud fallback when local Ollama box is unavailable
 - [ ] Response monitoring — detect email replies, interview invites
 - [ ] Salary negotiation AI — help with offer responses
 
 ## Done
 
 - [x] Create GitHub repo (2026-05-29)
+- [x] Full-stack app: scraper + tailor + PDF + dashboard, 94 applications (2026-06-17)
+- [x] Scored, fidelity-checked tailoring — 0 fabrications by construction (2026-06-18)
+- [x] Match scoring stored per application + exposed via API (2026-06-18)
+- [x] Fix cross-run dedup (stable job ids); re-key existing jobs (2026-06-18)
+- [x] Friendly PDF filenames Name_Title_Company.pdf + folder cleanup (2026-06-18)
+- [x] Every-3-days cron scraper installed (2026-06-18)
+- [x] Switch LLM backend to free local Ollama (qwen3.6:35b-256k) via .env (2026-06-18)
+- [x] JSON-output robustness for cheap/reasoning models (2026-06-18)
+- [x] Redo all 94 resumes clean & scored on local Qwen — 0 fabrications (2026-06-18)
+- [x] Redesign dashboard: modern, mobile-friendly, SVG icons, match-score triage (2026-06-18)
+- [x] Paste-a-link feature: URL → JD scrape → detect title/company → scored tailor (2026-06-19)
+- [x] Enable auto-scrape (`auto_scrape_enabled=true`); first live cron run pulled 27 new jobs (2026-06-19)
+- [x] Fix cron concurrency: fcntl lock in scheduled_scrape.py (a cron run had overlapped a manual run and created 86 duplicate applications, since cleaned) (2026-06-19)
 
 ## Blocked
 
-(none yet)
+- [ ] OpenRouter credits exhausted ($45.26 used) — mitigated by moving to free local
+      Ollama; cloud paths need a top-up to use again.
+
+## Releases
+
+- v0.3.0 — released 2026-06-19 — Paste-a-link tailoring, auto-scrape enabled (first live cron, +27 jobs → 121 applications), cron concurrency lock
+- v0.2.0 — released 2026-06-18 — Scored truthful tailoring, dedup fix, local-LLM backend, cron, all 94 resumes redone clean, redesigned match-score dashboard
+- v0.1.0 — released 2026-06-17 — Initial full-stack app: scrape → tailor → PDF → dashboard
 
 ## Architecture
 
@@ -192,7 +215,26 @@ AI-powered job application automation — tailored resumes, auto-apply, tracking
 
 ## Notes
 
+- **LLM backend**: configured in project `.env` (loaded by `engine._load_env()`).
+  Default = local Ollama `qwen3.6:35b-256k` at `http://10.0.0.18:11434/v1` (free, slow
+  ~3-8 min/resume). Switch to cloud by editing `.env` (`TAILOR_MODEL`, drop `LLM_BASE_URL`).
+- **Claude Pro/Max subscriptions cannot power API calls** — claude.ai + Claude Code only.
+- **Tailoring**: `tailor_resume_scored()` loops extract→tailor→score until must-coverage
+  ≥ 0.85, then `_strip_fabricated()` removes untraceable skills → 0 fabrications.
+  `match_score` is stored per application; use ≥ ~0.7 as an "apply" threshold.
+- **Dedup**: job id = `title+company` hash; re-scrape never duplicates. Toggle scraping
+  via the `auto_scrape_enabled` setting (currently **`true`**).
+- **Paste a job link**: dashboard Pipeline tab card → `POST /api/pipeline/run-url` →
+  `pipeline.add_job_from_url()` scrapes the JD, `engine.extract_job_meta()` detects
+  title/company, then the normal scored tailor runs. Scrape-blocked sites may yield too
+  little text (returns an error).
+- **Regen resumes** (no LLM cost for re-render of PDFs; LLM for re-tailor):
+  `venv/bin/python -m scripts.regen_resumes [N|unscored]`. Idempotent — `unscored` skips done.
+- **Cron**: `0 6 */3 * *` → `scripts/scheduled_scrape.py`, logs `data/scrape.log`. The
+  script takes an `fcntl` lock (`data/.scrape.lock`) and skips if a run is already in
+  progress — a run can take ~13h on the local LLM, so overlapping runs would duplicate
+  applications (happened 2026-06-19, now guarded).
 - LinkedIn RSS is dead (404). Use scraping or LinkedIn API.
-- n8n API key in ~/.hermes/.env (N8N_API_KEY)
+- n8n API key in ~/.hermes/.env (N8N_API_KEY); OpenRouter key also in ~/.hermes/.env
 - Himalaya email config at ~/.config/himalaya/config.toml
 - Gmail app password at ~/.hermes/.secrets/gmail-app-password

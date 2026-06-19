@@ -77,6 +77,13 @@ def init_db():
             );
         """)
 
+        # Migrations: add columns that may not exist on older databases
+        existing_cols = {r["name"] for r in conn.execute("PRAGMA table_info(applications)")}
+        if "match_score" not in existing_cols:
+            conn.execute("ALTER TABLE applications ADD COLUMN match_score REAL")
+        if "match_report" not in existing_cols:
+            conn.execute("ALTER TABLE applications ADD COLUMN match_report TEXT")
+
         # Insert default settings if not present
         defaults = {
             "search_keywords": "virtual production,unreal engine,LED volume,VP supervisor",

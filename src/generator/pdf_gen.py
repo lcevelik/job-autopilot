@@ -5,11 +5,33 @@ Professional ATS-friendly resume and cover letter PDFs.
 Design: Corporate Deep Blue + Accent Amber, A4, WeasyPrint.
 """
 
+import re
 from pathlib import Path
 from weasyprint import HTML
 
 OUTPUT_DIR = Path(__file__).parent.parent.parent / "data" / "applications"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _slug(text: str, max_len: int = 60) -> str:
+    """Turn arbitrary text into a safe filename fragment (underscores, no punctuation)."""
+    s = re.sub(r"[^A-Za-z0-9]+", "_", (text or "").strip()).strip("_")
+    return s[:max_len].strip("_")
+
+
+def _pdf_filename(name: str, job_title: str, app_id: str, company: str = "", suffix: str = "") -> str:
+    """Build a human-readable PDF filename like
+    'Libor_Cevelik_Senior_VFX_Artist_Tencent.pdf'.
+
+    Falls back to the app_id when the job title and company are both missing, so a
+    file is always produced. `suffix` distinguishes e.g. the cover letter.
+    """
+    name_slug = _slug(name) or "Resume"
+    parts = [p for p in (_slug(job_title), _slug(company, 40)) if p]
+    stem = f"{name_slug}_" + "_".join(parts) if parts else f"{name_slug}_{app_id}"
+    if suffix:
+        stem = f"{stem}_{suffix}"
+    return f"{stem}.pdf"
 
 # ── Resume CSS ────────────────────────────────────────────────────────────────
 
@@ -326,8 +348,12 @@ def _render_skills_table(skills: dict) -> str:
     return rows
 
 
-def generate_resume_pdf(tailored_resume: dict, app_id: str) -> str:
-    """Generate ATS-friendly resume PDF. Returns path to the PDF."""
+def generate_resume_pdf(tailored_resume: dict, app_id: str, job_title: str = "", company: str = "") -> str:
+    """Generate ATS-friendly resume PDF. Returns path to the PDF.
+
+    Filename is '<Name>_<Job Title>_<Company>.pdf'
+    (e.g. Libor_Cevelik_Senior_VFX_Artist_Tencent.pdf).
+    """
     personal = tailored_resume.get("personal", {})
     summary = tailored_resume.get("summary_templates", {}).get("default", "")
     experience = tailored_resume.get("experience", [])
@@ -366,13 +392,16 @@ def generate_resume_pdf(tailored_resume: dict, app_id: str) -> str:
         certifications="".join(f"<li>{c}</li>" for c in certifications),
     )
 
-    out_path = str(OUTPUT_DIR / f"{app_id}_resume.pdf")
+    out_path = str(OUTPUT_DIR / _pdf_filename(personal.get("name", ""), job_title, app_id, company))
     HTML(string=html).write_pdf(out_path)
     return out_path
 
 
-def generate_cover_letter_pdf(cover_letter: str, name: str, email: str, phone: str, location: str, app_id: str) -> str:
-    """Generate cover letter PDF. Returns path to the PDF."""
+def generate_cover_letter_pdf(cover_letter: str, name: str, email: str, phone: str, location: str, app_id: str, job_title: str = "", company: str = "") -> str:
+    """Generate cover letter PDF. Returns path to the PDF.
+
+    Filename is '<Name>_<Job Title>_<Company>_CoverLetter.pdf'.
+    """
     from datetime import datetime
 
     paragraphs = ""
@@ -391,7 +420,7 @@ def generate_cover_letter_pdf(cover_letter: str, name: str, email: str, phone: s
         paragraphs=paragraphs,
     )
 
-    out_path = str(OUTPUT_DIR / f"{app_id}_cover.pdf")
+    out_path = str(OUTPUT_DIR / _pdf_filename(name, job_title, app_id, company, suffix="CoverLetter"))
     HTML(string=html).write_pdf(out_path)
     return out_path
 

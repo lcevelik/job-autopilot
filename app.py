@@ -17,7 +17,7 @@ from src.db import (
     get_applications, get_application, delete_application,
     get_pipeline_runs, get_setting, set_setting, get_all_settings,
 )
-from src.pipeline import run_pipeline, run_single_job
+from src.pipeline import run_pipeline, run_single_job, add_job_from_url
 from src.generator.pdf_gen import generate_resume_pdf, generate_cover_letter_pdf
 
 app = FastAPI(title="Job Autopilot", version="2.0.0")
@@ -113,6 +113,34 @@ def api_run_pipeline(req: PipelineRequest, background_tasks: BackgroundTasks):
     return {"status": "started", "message": "Pipeline running in background"}
 
 
+class UrlRequest(BaseModel):
+    url: str
+    template: Optional[str] = "default"
+
+
+@app.post("/api/pipeline/run-url")
+def api_run_url(req: UrlRequest, background_tasks: BackgroundTasks):
+    """Tailor a resume from a single pasted job-posting URL."""
+    global _pipeline_running
+    if _pipeline_running:
+        raise HTTPException(409, "Pipeline already running")
+    if not req.url or not req.url.strip().lower().startswith("http"):
+        raise HTTPException(400, "Provide a valid job posting URL (starting with http)")
+
+    def _run():
+        global _pipeline_running
+        _pipeline_running = True
+        try:
+            res = add_job_from_url(req.url.strip(), req.template or "default")
+            if res.get("error"):
+                print(f"run-url failed: {res['error']}")
+        finally:
+            _pipeline_running = False
+
+    background_tasks.add_task(_run)
+    return {"status": "started", "message": "Reading link and tailoring in background"}
+
+
 @app.get("/api/pipeline/status")
 def api_pipeline_status():
     runs = get_pipeline_runs(limit=1)
@@ -164,8 +192,8 @@ def api_download_resume_pdf(app_id: str):
         import json
         resume_data = json.loads(app_data["tailored_resume"])
 
-    pdf_path = generate_resume_pdf(resume_data, app_id)
-    return FileResponse(pdf_path, filename=f"resume_{app_data.get('job_company', 'unknown')}_{app_id}.pdf", media_type="application/pdf")
+    pdf_path = generate_resume_pdf(resume_data, app_id, app_data.get("job_title", ""), app_data.get("job_company", ""))
+    return FileResponse(pdf_path, filename=os.path.basename(pdf_path), media_type="application/pdf")
 
 
 @app.get("/api/applications/{app_id}/cover.pdf")
@@ -193,8 +221,10 @@ def api_download_cover_pdf(app_id: str):
         personal.get("phone", ""),
         personal.get("location", ""),
         app_id,
+        app_data.get("job_title", ""),
+        app_data.get("job_company", ""),
     )
-    return FileResponse(pdf_path, filename=f"cover_{app_data.get('job_company', 'unknown')}_{app_id}.pdf", media_type="application/pdf")
+    return FileResponse(pdf_path, filename=os.path.basename(pdf_path), media_type="application/pdf")
 
 
 @app.post("/api/pipeline/regenerate")

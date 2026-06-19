@@ -13,6 +13,10 @@ data/master/resume.json
 data/applications/
 data/jobs/*.json
 
+# Runtime logs & lock files
+data/*.log
+data/.scrape.lock
+
 # Secrets
 *.env
 *.secret
