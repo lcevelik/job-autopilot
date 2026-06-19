@@ -62,7 +62,7 @@ TAILOR_MODEL=qwen3.6:35b-256k             # any OpenAI-style model id for the co
 
 **Single-link entry point.** `pipeline.add_job_from_url(url, template)` powers the dashboard's "Paste a job link" card (`POST /api/pipeline/run-url`): it scrapes the JD off the page, calls `engine.extract_job_meta(jd)` (one LLM call → title/company/location, since a pasted link has no job-card metadata), upserts the job under the **same `_job_key` id scheme** as the scraper (re-pasting updates, never duplicates), then reuses `run_single_job` for the scored tailor + cover letter. Returns `{"error": ...}` if the page yields too little text (scrape-blocked sites). Like the other long runs it's a `BackgroundTasks` job behind `_pipeline_running`.
 
-`src/db.py` (SQLite at `data/job_autopilot.db`) runs `init_db()` **on import** (creates tables + runs column migrations like `match_score`/`match_report`). `data/master/resume.json` is the single source of truth for resume content.
+`src/db.py` (SQLite at `data/job_autopilot.db`) runs `init_db()` **on import** (creates tables, runs column migrations like `match_score`/`match_report`, and seeds default `settings`). The DB file is **gitignored** (it's runtime data that changes every run) — a fresh clone auto-creates an empty, ready DB on first import; there is no schema dump to keep in sync (`init_db` is the schema). `data/master/resume.json` is the single source of truth for resume content.
 
 ## Non-obvious conventions
 

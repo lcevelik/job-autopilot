@@ -17,6 +17,11 @@ data/jobs/*.json
 data/*.log
 data/.scrape.lock
 
+# SQLite DB — schema + default settings are recreated by db.init_db() on first run
+data/*.db
+data/*.db-wal
+data/*.db-shm
+
 # Secrets
 *.env
 *.secret

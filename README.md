@@ -70,7 +70,7 @@ scripts/
 data/
   master/              # resume.json (source of truth) + preferences.json
   applications/        # generated PDFs + match data
-  job_autopilot.db     # SQLite
+  job_autopilot.db     # SQLite (gitignored; auto-created by db.init_db() on first run)
 ```
 
 ## Scraping & dedup
