@@ -122,14 +122,30 @@ the **Studio Mirage** job (Video Producer & Director, Prague 2005–2009), the e
 `data/master/resume.json.bak`) and added a **conditional awards render block** in `pdf_gen.py`
 (renders only when awards exist, so old apps stay clean). Verified by rendering a PDF.
 **Existing 121 apps are snapshots** — they won't show the new content until re-tailored
-(`scripts.regen_resumes`, ~13h on local LLM).
+(`scripts.regen_resumes`, ~13h on local LLM). **Kicked off that full regen** at the end of
+the session (background, `data/regen_jun20.log`) so all 121 pick up Studio Mirage + awards
++ the new angle-matched summaries.
+
+## 13. Multi-location scraping + California + AMD (catch Bay Area roles)
+
+Prompted by a perfect-fit posting — **AI Creative Technologist @ AMD, Santa Clara, $175–262k**
+— that our scraper would never find: keywords matched, but we only searched
+`Los Angeles, Remote`, and the pipeline passed the whole `search_location` string as a
+**single** location (so multi-value never actually worked). Fixes:
+- `run_pipeline` now **splits `search_location` on commas and loops** each location (like
+  keywords); same job under multiple locations dedups to one stable id.
+- `search_location` → `Los Angeles, Remote, California` (statewide, per user choice).
+- Added **AMD** to `target_companies` (priority ranking; discovery rides on LinkedIn/Indeed
+  keyword+location search, not the hardcoded career-page dict).
+Verified the split + that the AMD title matches `creative technologist` / `AI workflow` /
+`generative AI`. Takes effect next scrape (cron June 22, or a manual run).
 
 ## New / changed files (whole session)
 
 | File | Change |
 |------|--------|
 | `src/tailor/engine.py` | + `extract_job_meta`, `select_summary_angle`, summary-seed in `tailor_resume`, angle in scored loop |
-| `src/pipeline.py` | + `add_job_from_url` (with `tailor` flag), store `summary_angle` as template, log angle |
+| `src/pipeline.py` | + `add_job_from_url` (with `tailor` flag), store `summary_angle` as template, log angle, split+loop locations |
 | `app.py` | + `POST /api/pipeline/run-url`, `POST /api/jobs/add-url` |
 | `static/index.html` | Add Job tab + manual badges, summary-angle chip |
 | `scripts/scheduled_scrape.py` | `fcntl` lock guard |

@@ -28,16 +28,19 @@ AI-powered job application automation — tailored resumes, auto-apply, tracking
 ### Phase 2: AI Engine
 - [x] Job analyzer — extract requirements, keywords, seniority from JD
 - [x] Resume tailor — rewrite summary, bullets, skills order per JD
+- [x] Summary voice auto-matched to each JD (engineering/ai_ml/management/executive/default)
 - [x] Cover letter generator — 3-paragraph tailored version
 - [x] ATS keyword optimizer — scored coverage loop + deterministic fidelity strip
 - [x] PDF generator — clean ATS-friendly output, friendly Name_Title_Company.pdf names
+- [x] Awards & Recognition block on resumes (conditional render)
 - [x] Match scoring per application (stored + API) — doubles as a fit-triage signal
 
 ### Phase 3: Automation
 - [x] Cron scraper every 3 days (scripts/scheduled_scrape.py)
 - [x] Cross-run dedup via stable job ids — no duplicate jobs/resumes on re-scrape
 - [x] Concurrency guard (fcntl lock) so cron/manual runs can't overlap & duplicate
-- [x] Paste-a-link → tailored resume (POST /api/pipeline/run-url, dashboard card)
+- [x] Paste-a-link → tailored resume (dedicated Add Job tab + Run-via-pipeline)
+- [x] Multi-location scraping — search each location separately (LA, Remote, California)
 - [ ] Auto-apply via LinkedIn Easy Apply (Playwright)
 - [ ] Follow-up email sequences (day 3, day 7)
 - [ ] Application tracker sync to Google Sheet
@@ -65,6 +68,12 @@ AI-powered job application automation — tailored resumes, auto-apply, tracking
 - [x] Paste-a-link feature: URL → JD scrape → detect title/company → scored tailor (2026-06-19)
 - [x] Enable auto-scrape (`auto_scrape_enabled=true`); first live cron run pulled 27 new jobs (2026-06-19)
 - [x] Fix cron concurrency: fcntl lock in scheduled_scrape.py (a cron run had overlapped a manual run and created 86 duplicate applications, since cleaned) (2026-06-19)
+- [x] Dedicated Add Job tab: add manual jobs by link, Run-via-pipeline on demand (2026-06-19)
+- [x] Stop tracking SQLite DB; init_db() recreates it on first run (2026-06-19)
+- [x] systemd unit + installer (deploy/) — install pending sudo (2026-06-19)
+- [x] Summary voice auto-matched to the JD (deterministic select_summary_angle) (2026-06-20)
+- [x] Fix resume data gaps vs. real PDF: add Studio Mirage job, Awards section, missing cert (2026-06-20)
+- [x] Multi-location scraping + search California + add AMD to target companies (2026-06-20)
 
 ## Blocked
 
@@ -73,6 +82,7 @@ AI-powered job application automation — tailored resumes, auto-apply, tracking
 
 ## Releases
 
+- v0.4.0 — released 2026-06-20 — Add Job tab, JD-matched summary voice, Awards/Studio-Mirage resume fixes, multi-location (California) scraping + AMD, DB untracked, systemd unit
 - v0.3.0 — released 2026-06-19 — Paste-a-link tailoring, auto-scrape enabled (first live cron, +27 jobs → 121 applications), cron concurrency lock
 - v0.2.0 — released 2026-06-18 — Scored truthful tailoring, dedup fix, local-LLM backend, cron, all 94 resumes redone clean, redesigned match-score dashboard
 - v0.1.0 — released 2026-06-17 — Initial full-stack app: scrape → tailor → PDF → dashboard
@@ -222,12 +232,25 @@ AI-powered job application automation — tailored resumes, auto-apply, tracking
 - **Tailoring**: `tailor_resume_scored()` loops extract→tailor→score until must-coverage
   ≥ 0.85, then `_strip_fabricated()` removes untraceable skills → 0 fabrications.
   `match_score` is stored per application; use ≥ ~0.7 as an "apply" threshold.
+- **Summary voice**: `engine.select_summary_angle(jd, requirements)` deterministically
+  picks one of the 5 master voices per JD (signal-phrase scoring; fallback `default`).
+  The chosen voice is seeded into the rendered slot so the model tailors the right angle;
+  stored as `report.summary_angle` and the app's `template`, shown as a chip in detail.
+- **Resume content**: `data/master/resume.json` is the source of truth (gitignored, backup
+  `.bak`). Mirrors the real `LiborCevelik2026.pdf` — 5 jobs incl. Studio Mirage, an
+  `awards` section (rendered conditionally), education, certs. **Tailored resumes are
+  snapshots**: existing apps don't reflect master edits until re-tailored.
+- **Search**: `search_keywords` + `search_location` (now `Los Angeles, Remote, California`
+  — each location searched separately) + `scrape_sources` + `target_companies` (incl. AMD).
 - **Dedup**: job id = `title+company` hash; re-scrape never duplicates. Toggle scraping
   via the `auto_scrape_enabled` setting (currently **`true`**).
-- **Paste a job link**: dashboard Pipeline tab card → `POST /api/pipeline/run-url` →
-  `pipeline.add_job_from_url()` scrapes the JD, `engine.extract_job_meta()` detects
-  title/company, then the normal scored tailor runs. Scrape-blocked sites may yield too
-  little text (returns an error).
+- **Add a job by link**: dedicated **Add Job** dashboard tab → `POST /api/jobs/add-url`
+  (`add_job_from_url(tailor=False)`) scrapes the JD, `engine.extract_job_meta()` detects
+  title/company, adds it flagged `source="manual"` WITHOUT tailoring; user hits
+  **Run via pipeline** per job to tailor. Scrape-blocked sites may return an error.
+- **Server**: manual `setsid venv/bin/python app.py` on :8080. systemd unit at
+  `deploy/job-autopilot.service` — install with `sudo bash deploy/install-service.sh`
+  (pending) for boot/crash auto-restart.
 - **Regen resumes** (no LLM cost for re-render of PDFs; LLM for re-tailor):
   `venv/bin/python -m scripts.regen_resumes [N|unscored]`. Idempotent — `unscored` skips done.
 - **Cron**: `0 6 */3 * *` → `scripts/scheduled_scrape.py`, logs `data/scrape.log`. The
