@@ -1,0 +1,20 @@
+[Unit]
+Description=Job Autopilot (FastAPI dashboard + tailoring pipeline)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=server
+WorkingDirectory=/media/server/Storage/www/job-autopilot
+# app.py runs uvicorn on 0.0.0.0:8080 in the foreground; it relies on cwd being
+# the repo root for its .env / relative paths (see CLAUDE.md).
+ExecStart=/media/server/Storage/www/job-autopilot/venv/bin/python app.py
+Restart=always
+RestartSec=5
+# Log to the journal (journalctl -u job-autopilot) instead of the old data/app.log.
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
