@@ -494,6 +494,8 @@ async function viewApp(id){
     const a=await api('/api/applications/'+id);
     document.getElementById('app-detail').style.display='block';
     const rep=parseStored(a.match_report);
+    const ANGLE_LBL={default:'Default (balanced)',executive:'Executive',engineering:'Engineering',ai_ml:'AI / ML',management:'Management'};
+    const ang=rep&&rep.summary_angle?`<span class="tag violet" title="Summary voice auto-matched to this job description">${svg('star',12)}Summary: ${ANGLE_LBL[rep.summary_angle]||rep.summary_angle}</span>`:'';
     let kw='';
     if(rep){
       const covered=(rep.covered||[]).map(k=>`<span class="kw has">${esc(k)}</span>`).join('');
@@ -504,6 +506,7 @@ async function viewApp(id){
     document.getElementById('app-meta').innerHTML=`
       <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">${scoreChip(a.match_score)}
         <div><div style="font-weight:650">${esc(a.job_title||'')}</div><div style="font-size:13px;color:var(--muted)">${esc(a.job_company||'')}${a.job_location?' · '+esc(a.job_location):''}</div></div></div>
+      ${ang?`<div style="margin-bottom:12px">${ang}</div>`:''}
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px">
         ${a.job_url?`<a class="btn primary sm" href="${esc(a.job_url)}" target="_blank" rel="noopener">${svg('apply',16)}Apply</a>`:''}
         <a class="btn ghost sm" href="/api/applications/${id}/resume.pdf" target="_blank">${svg('file',16)}Resume PDF</a>

@@ -159,6 +159,14 @@ def tailor_resume(master_resume_path: str, job_description: str, role_template: 
     with open(master_resume_path) as f:
         master = json.load(f)
 
+    # Auto-matched summary angle: pdf_gen renders summary_templates["default"], so
+    # seed that slot with the chosen voice's text. The model then tailors THAT
+    # angle to the JD — deterministically the right voice, regardless of which slot
+    # the model would otherwise have rewritten. No-op when angle == "default".
+    voices = master.get("summary_templates", {})
+    if isinstance(voices, dict) and role_template in voices and role_template != "default":
+        voices["default"] = voices[role_template]
+
     # Prepare the system prompt
     system_prompt = """You are an expert resume writer and ATS optimization specialist.
 Your task is to tailor a master resume to match a specific job description.
@@ -252,6 +260,46 @@ RULES:
         imp = "must" if r.get("importance", "must").lower().startswith("must") else "nice"
         out.append({"keyword": kw, "importance": imp})
     return out
+
+
+# Signal phrases that suggest which master summary "voice" best fits a JD. The
+# summary angle is auto-matched to each job (see tailor_resume_scored) rather than
+# manually picked. "default" is the generic fallback when nothing clearly dominates.
+_ANGLE_SIGNALS = {
+    "executive":   ["vice president", "vp ", " vp,", "director of", "head of", "chief",
+                    "c-suite", "executive", "strategic vision", "org-wide", "p&l", "board"],
+    "management":  ["manage a team", "team lead", "people management", "stakeholder",
+                    "budget", "cross-functional", "hiring", "mentor", "supervise",
+                    "direct reports", "program management", "leadership of"],
+    "ai_ml":       ["machine learning", "deep learning", "generative ai", "genai", "llm",
+                    "large language model", "neural", "computer vision", "data science",
+                    "mlops", "model training", "ai-driven", "automation"],
+    "engineering": ["software engineer", "c++", "python", "real-time rendering",
+                    "ndisplay", "unreal engine", "pipeline development", "shader",
+                    "low-level", "sdk", "api integration", "systems engineering"],
+}
+# When two angles tie, prefer the more distinctive one in this order.
+_ANGLE_TIEBREAK = ["ai_ml", "executive", "management", "engineering"]
+
+
+def select_summary_angle(job_description: str, requirements: list = None) -> str:
+    """Deterministically pick which master summary voice best fits a JD.
+
+    Scores each angle by how many of its signal phrases appear in the JD (plus the
+    extracted requirement keywords, which are canonical skills), and returns the
+    best — or "default" when nothing clearly dominates. Deterministic on purpose,
+    consistent with score_match: the angle is chosen by the JD, not the model.
+    """
+    haystack = (job_description or "").lower()
+    if requirements:
+        haystack += " " + " ".join((r.get("keyword") or "").lower() for r in requirements)
+    scores = {a: sum(1 for sig in sigs if sig in haystack)
+              for a, sigs in _ANGLE_SIGNALS.items()}
+    best = max(scores.values()) if scores else 0
+    if best == 0:
+        return "default"
+    winners = [a for a in _ANGLE_TIEBREAK if scores.get(a, 0) == best]
+    return winners[0] if winners else "default"
 
 
 def extract_job_meta(job_description: str) -> dict:
@@ -436,11 +484,14 @@ def tailor_resume_scored(master_resume_path: str, job_description: str,
         master = json.load(f)
 
     requirements = extract_requirements(job_description)
+    # Auto-match the summary voice to this JD (overrides any manually-passed
+    # role_template — selection is now driven by the job, not a dropdown).
+    angle = select_summary_angle(job_description, requirements)
 
     best = None
     feedback = ""
     for _ in range(max_attempts):
-        tailored = tailor_resume(master_resume_path, job_description, role_template, feedback=feedback)
+        tailored = tailor_resume(master_resume_path, job_description, angle, feedback=feedback)
         report = score_match(tailored, requirements, master)
 
         if best is None or report["must_coverage"] > best[1]["must_coverage"]:
@@ -468,6 +519,7 @@ def tailor_resume_scored(master_resume_path: str, job_description: str,
     master_text = _flatten_text(master).lower()
     tailored = _strip_fabricated(tailored, master_text)
     report = score_match(tailored, requirements, master)
+    report["summary_angle"] = angle
     return tailored, report
 
 def generate_cover_letter(master_resume_path: str, job_description: str, company_name: str) -> str:

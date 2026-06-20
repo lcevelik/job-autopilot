@@ -220,6 +220,7 @@ def run_pipeline(keywords: str = None, location: str = None, template: str = Non
                     tailored, match_report = tailor_resume_scored(MASTER_RESUME, description, template)
                     log(f"  Resume tailored OK — match {match_report['score']} "
                         f"(must {match_report['must_coverage']}), "
+                        f"angle {match_report.get('summary_angle', '?')}, "
                         f"missing {len(match_report['missing'])}, "
                         f"fabricated {len(match_report['fabricated'])}")
                 except Exception as e:
@@ -247,6 +248,7 @@ def run_pipeline(keywords: str = None, location: str = None, template: str = Non
                     cover_letter=cover,
                     match_score=match_report["score"] if match_report else None,
                     match_report=_json.dumps(match_report) if match_report else None,
+                    template=match_report.get("summary_angle", template) if match_report else template,
                     status="done",
                     completed_at=datetime.now().isoformat(),
                 )
@@ -392,6 +394,7 @@ def run_single_job(job_id: str, template: str = "default"):
         cover_letter=cover,
         match_score=match_report["score"] if match_report else None,
         match_report=_json.dumps(match_report) if match_report else None,
+        template=match_report.get("summary_angle", template) if match_report else template,
         status="done",
         completed_at=datetime.now().isoformat(),
     )
