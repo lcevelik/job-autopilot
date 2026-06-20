@@ -177,7 +177,7 @@ RESUME_TEMPLATE = """<!DOCTYPE html>
 
 <h2>Professional Summary</h2>
 <div class="summary">{summary}</div>
-
+{awards}
 <h2>Experience</h2>
 {experience}
 
@@ -361,6 +361,14 @@ def generate_resume_pdf(tailored_resume: dict, app_id: str, job_title: str = "",
     skills = tailored_resume.get("skills", {})
     education = tailored_resume.get("education", [])
     certifications = tailored_resume.get("certifications", [])
+    awards = tailored_resume.get("awards", [])
+
+    # Awards block is optional: render the header only when there are awards, so
+    # older applications tailored before the awards section existed stay clean.
+    awards_html = ""
+    if awards:
+        items = "".join(f"<li>{a}</li>" for a in awards)
+        awards_html = f'<h2>Awards &amp; Recognition</h2>\n<ul>{items}</ul>'
 
     tagline = _get_tagline(tailored_resume)
 
@@ -385,6 +393,7 @@ def generate_resume_pdf(tailored_resume: dict, app_id: str, job_title: str = "",
         vimeo=vimeo,
         website=website,
         summary=summary,
+        awards=awards_html,
         experience=_render_experience(experience),
         projects=_render_projects(projects),
         skills_table=_render_skills_table(skills),
