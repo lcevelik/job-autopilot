@@ -81,13 +81,15 @@ genuinely new jobs are tailored. Toggle scraping with the `auto_scrape_enabled` 
 (currently on). `scheduled_scrape.py` takes an `fcntl` lock and skips if a run is already
 running, so the cron can't overlap a manual or slow previous run and create duplicates.
 
-## Paste a job link
+## Add a job by link
 
-Don't want to wait for the scraper? On the dashboard's **Pipeline** tab, paste a job
-posting URL into **"Paste a job link"** and hit *Tailor from link*. It reads the JD off
-the page, detects the title/company with the LLM, runs the same scored tailor + cover
-letter, and the result shows up in Applications. (Sites that block scraping — LinkedIn
-especially — may not yield enough text; you'll get a clear error if so.)
+Found a job yourself? Use the dashboard's **Add Job** tab: paste the posting URL and hit
+*Add to job list*. It reads the JD off the page, detects the title/company with the LLM,
+and adds it **flagged "Manual"** (violet badge, pinned to the top of the jobs list) —
+**without** tailoring yet. When you're ready, hit **Run via pipeline** on that job to run
+the scored tailor + cover letter; a match-score chip then appears. (Sites that block
+scraping — LinkedIn especially — may not yield enough text; you'll get a clear error if
+so.)
 
 ## Tech Stack
 

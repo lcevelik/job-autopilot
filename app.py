@@ -141,6 +141,19 @@ def api_run_url(req: UrlRequest, background_tasks: BackgroundTasks):
     return {"status": "started", "message": "Reading link and tailoring in background"}
 
 
+@app.post("/api/jobs/add-url")
+def api_add_url(req: UrlRequest):
+    """Add a job from a pasted URL WITHOUT tailoring — the user runs the pipeline
+    on it manually afterwards (via the Run-via-pipeline button → /process). Runs
+    synchronously: only the lightweight JD scrape + title/company detection."""
+    if not req.url or not req.url.strip().lower().startswith("http"):
+        raise HTTPException(400, "Provide a valid job posting URL (starting with http)")
+    res = add_job_from_url(req.url.strip(), req.template or "default", tailor=False)
+    if res.get("error"):
+        raise HTTPException(422, res["error"])
+    return res
+
+
 @app.get("/api/pipeline/status")
 def api_pipeline_status():
     runs = get_pipeline_runs(limit=1)

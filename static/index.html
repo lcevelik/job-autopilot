@@ -11,7 +11,8 @@
     --border:#e4e7eb; --text:#171a1f; --muted:#6b7280; --muted-2:#9aa1ac;
     --primary:#4f46e5; --primary-600:#4338ca; --primary-bg:#eef0fe;
     --green:#15803d; --green-bg:#dcfce7; --amber:#b45309; --amber-bg:#fef3c7;
-    --red:#b91c1c; --red-bg:#fee2e2; --radius:14px; --radius-sm:9px;
+    --red:#b91c1c; --red-bg:#fee2e2; --violet:#6d28d9; --violet-bg:#ede9fe;
+    --radius:14px; --radius-sm:9px;
     --shadow:0 1px 2px rgba(16,24,40,.05),0 1px 3px rgba(16,24,40,.06);
     --shadow-lg:0 8px 24px rgba(16,24,40,.10);
     --nav-w:240px;
@@ -102,6 +103,8 @@
   .tag.green{background:var(--green-bg);color:var(--green)} .tag.amber{background:var(--amber-bg);color:var(--amber)}
   .tag.red{background:var(--red-bg);color:var(--red)} .tag.blue{background:var(--primary-bg);color:var(--primary-600)}
   .tag.gray{background:var(--surface-3);color:var(--muted)}
+  .tag.violet{background:var(--violet-bg);color:var(--violet)}
+  .row.manual{border-color:var(--violet);border-left:3px solid var(--violet);background:linear-gradient(90deg,var(--violet-bg) 0%,var(--surface) 22%)}
 
   /* ── Buttons ── */
   .btn{all:unset;display:inline-flex;align-items:center;gap:7px;padding:9px 15px;border-radius:9px;
@@ -232,18 +235,6 @@
       <!-- PIPELINE -->
       <section class="page" id="page-pipeline">
         <div class="card">
-          <div class="card-head"><h2>Paste a job link</h2></div>
-          <div class="field"><label>Job posting URL</label><textarea id="url-input" placeholder="https://… paste a job posting link"></textarea></div>
-          <div class="field"><label>Template</label>
-            <select id="url-template">
-              <option value="default">Default (balanced)</option><option value="executive">Executive</option>
-              <option value="engineering">Engineering</option><option value="ai_ml">AI / ML</option><option value="management">Management</option>
-            </select>
-          </div>
-          <button class="btn primary" onclick="runUrl()" id="url-run-btn">Tailor from link</button>
-          <p style="font-size:12.5px;color:var(--muted);margin-top:10px">Reads the posting → detects title &amp; company → scored tailor → cover letter → PDF. Sites that block scraping may not extract.</p>
-        </div>
-        <div class="card">
           <div class="card-head"><h2>Run pipeline</h2></div>
           <div class="grid-2">
             <div class="field"><label>Keywords</label><textarea id="pipe-keywords"></textarea></div>
@@ -293,6 +284,24 @@
         </div>
         <div class="section-title">All jobs (<span id="job-count">0</span>)</div>
         <div class="list" id="jobs-list"></div>
+      </section>
+
+      <!-- ADD JOB (manual) -->
+      <section class="page" id="page-addjob">
+        <div class="card">
+          <div class="card-head"><h2>Add a job by link</h2><span class="tag violet" style="margin-left:8px">Manual</span></div>
+          <div class="field"><label>Job posting URL</label><textarea id="url-input" placeholder="https://… paste a job you found yourself"></textarea></div>
+          <div class="field"><label>Template</label>
+            <select id="url-template">
+              <option value="default">Default (balanced)</option><option value="executive">Executive</option>
+              <option value="engineering">Engineering</option><option value="ai_ml">AI / ML</option><option value="management">Management</option>
+            </select>
+          </div>
+          <button class="btn primary" onclick="addJob()" id="addjob-btn">Add to job list</button>
+          <p style="font-size:12.5px;color:var(--muted);margin-top:10px">Reads the posting → detects title &amp; company → adds it to your jobs flagged <b style="color:var(--violet)">Manual</b>. It does <b>not</b> tailor yet — hit <b>Run via pipeline</b> below when you're ready. Sites that block scraping may not extract.</p>
+        </div>
+        <div class="section-title">Your manual jobs</div>
+        <div class="list" id="manual-list"></div>
       </section>
 
       <!-- APPLICATIONS -->
@@ -375,10 +384,12 @@ const I = {
   star:'<path d="m12 2 3 7 7 .5-5.5 4.5 2 7-6.5-4-6.5 4 2-7L2 9.5 9 9z"/>',
   inbox:'<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5 5h14l3 7v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6z"/>',
   save:'<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  addjob:'<circle cx="11" cy="11" r="7"/><path d="m21 21-2-2M11 8v6M8 11h6"/>',
 };
 const svg = (n,s)=>`<svg viewBox="0 0 24 24"${s?` style="width:${s}px;height:${s}px"`:''}>${I[n]||''}</svg>`;
 
-const NAV = [['dashboard','Dashboard'],['pipeline','Pipeline'],['resume','Resume'],['jobs','Jobs'],['applications','Applications'],['settings','Settings']];
+const NAV = [['dashboard','Dashboard'],['pipeline','Pipeline'],['resume','Resume'],['jobs','Jobs'],['addjob','Add Job'],['applications','Applications'],['settings','Settings']];
 const API='';
 
 // build nav + static icons
@@ -405,7 +416,7 @@ function navigate(page){
   document.querySelectorAll('[data-page]').forEach(n=>n.classList.toggle('active',n.dataset.page===page));
   document.getElementById('page-title').textContent=TITLES[page];
   window.scrollTo(0,0);
-  ({dashboard:loadDashboard,pipeline:()=>{loadPipelineRuns();loadPipelineSettings();},resume:loadResume,jobs:loadJobs,applications:loadApplications,settings:loadSettings})[page]?.();
+  ({dashboard:loadDashboard,pipeline:()=>{loadPipelineRuns();loadPipelineSettings();},resume:loadResume,jobs:loadJobs,addjob:loadManualJobs,applications:loadApplications,settings:loadSettings})[page]?.();
 }
 function toast(msg,err){const t=document.getElementById('toast');t.innerHTML=svg(err?'x':'check',18)+`<span>${msg}</span>`;t.className='toast show'+(err?' err':'');setTimeout(()=>t.className='toast'+(err?' err':''),3000);}
 async function api(path,opts={}){const r=await fetch(API+path,{headers:{'Content-Type':'application/json',...opts.headers},...opts});if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.detail||`HTTP ${r.status}`);}return r.json();}
@@ -522,15 +533,38 @@ async function runPipeline(){
     toast('Pipeline started');pollPipeline(()=>{loadDashboard();loadPipelineRuns();});
   }catch(e){toast('Failed: '+e.message,true);setStatus(false);}
 }
-async function runUrl(){
+// Add a pasted link as a Manual job (no tailoring yet — user runs the pipeline below).
+async function addJob(){
   const u=(val('url-input')||'').trim();
   if(!u){toast('Paste a job link first',true);return;}
-  const b=document.getElementById('url-run-btn');b.disabled=true;setStatus(true);
+  const b=document.getElementById('addjob-btn');b.disabled=true;const orig=b.textContent;b.textContent='Detecting…';
   try{
-    await api('/api/pipeline/run-url',{method:'POST',body:JSON.stringify({url:u,template:val('url-template')})});
-    toast('Reading link & tailoring…');
-    pollPipeline(()=>{loadDashboard();loadApplications();b.disabled=false;setVal('url-input','');});
-  }catch(e){toast('Failed: '+e.message,true);setStatus(false);b.disabled=false;}
+    const r=await api('/api/jobs/add-url',{method:'POST',body:JSON.stringify({url:u,template:val('url-template')})});
+    toast(`Added: ${r.title} · ${r.company}`);setVal('url-input','');loadManualJobs();
+  }catch(e){toast('Failed: '+e.message,true);}
+  finally{b.disabled=false;b.textContent=orig;}
+}
+async function loadManualJobs(){
+  try{
+    const [jobs,apps]=await Promise.all([api('/api/jobs'),api('/api/applications?limit=500')]);
+    const appByJob={};apps.forEach(a=>{if(!appByJob[a.job_id])appByJob[a.job_id]=a;});
+    const manual=jobs.filter(j=>j.source==='manual');
+    document.getElementById('manual-list').innerHTML=manual.map(j=>{
+      const a=appByJob[j.id];const sc=a&&a.match_score!=null?a.match_score:null;
+      const chip=sc!=null?`<span class="score ${sc>=0.7?'strong':sc>=0.4?'partial':'weak'}">${Math.round(sc*100)}%</span>`:'';
+      const run=`<button class="btn ${a?'ghost':'primary'} sm" onclick="runManual('${j.id}')">${svg(a?'refresh':'bolt',15)}${a?'Re-run':'Run via pipeline'}</button>`;
+      return `<div class="row manual">
+        <div class="rmain"><div class="rtitle">${esc(j.title||'Untitled')}</div><div class="rsub">${esc(j.company||'')}${j.location?' · '+esc(j.location):''} · added by you</div></div>
+        ${chip}<span class="tag violet">${svg('star',12)}Manual</span>
+        <div class="ractions">${run}</div></div>`;
+    }).join('')||`<div class="empty">${svg('inbox')}<div>No manual jobs yet — paste a link above to add one.</div></div>`;
+  }catch(e){console.error(e);}
+}
+async function runManual(id){
+  try{await api(`/api/applications/${id}/process`,{method:'POST'});
+    toast('Running via pipeline…');setStatus(true);
+    pollPipeline(()=>{loadManualJobs();loadJobs();loadDashboard();});
+  }catch(e){toast('Failed: '+e.message,true);}
 }
 const val=id=>{const el=document.getElementById(id);return el&&el.value?el.value:undefined;};
 async function loadPipelineSettings(){try{const s=await api('/api/settings');setVal('pipe-keywords',s.search_keywords);setVal('pipe-location',s.search_location);setVal('pipe-template',s.default_template||'default');}catch(e){console.error(e);}}
@@ -560,11 +594,16 @@ async function loadResume(){
 // ── Jobs ──
 async function loadJobs(){
   try{const jobs=await api('/api/jobs');document.getElementById('job-count').textContent=jobs.length;
-    document.getElementById('jobs-list').innerHTML=jobs.map(j=>`<div class="row">
-      <div class="rmain"><div class="rtitle">${esc(j.title||'Untitled')}</div><div class="rsub">${esc(j.company||'')}${j.location?' · '+esc(j.location):''} · ${esc(j.source||'?')}</div></div>
+    jobs.sort((a,b)=>(b.source==='manual'?1:0)-(a.source==='manual'?1:0)); // manual entries pinned to top
+    document.getElementById('jobs-list').innerHTML=jobs.map(j=>{
+      const manual=j.source==='manual';
+      return `<div class="row${manual?' manual':''}">
+      <div class="rmain"><div class="rtitle">${esc(j.title||'Untitled')}</div><div class="rsub">${esc(j.company||'')}${j.location?' · '+esc(j.location):''} · ${manual?'added by you':esc(j.source||'?')}</div></div>
+      ${manual?`<span class="tag violet">${svg('star',12)}Manual</span>`:''}
       <span class="tag ${j.status==='new'?'blue':j.status==='error'?'red':j.status==='fetched'?'amber':'green'}">${esc(j.status)}</span>
-      <div class="ractions"><button class="btn ghost sm" onclick="processJob('${j.id}')">${svg('play',15)}Process</button></div></div>`).join('')
-      ||`<div class="empty">${svg('jobs')}<div>No jobs yet — scrape to begin.</div></div>`;
+      <div class="ractions"><button class="btn ghost sm" onclick="processJob('${j.id}')">${svg('play',15)}Process</button></div></div>`;
+    }).join('')
+      ||`<div class="empty">${svg('jobs')}<div>No jobs yet — scrape or paste a link to begin.</div></div>`;
   }catch(e){console.error(e);}
 }
 async function scrapeJobs(){const b=document.getElementById('scrape-btn');b.disabled=true;

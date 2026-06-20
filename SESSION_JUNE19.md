@@ -25,6 +25,15 @@ New single-URL entry point so you don't have to wait for the scraper.
 PDFs are generated lazily on download (the download endpoints regenerate), consistent with
 `run_single_job`. No fabrication risk — it goes through the same `tailor_resume_scored` loop.
 
+**Reworked into a dedicated "Add Job" tab (same session):** per user request the flow was
+split so *adding* and *tailoring* are separate steps. `add_job_from_url` gained a
+`tailor` flag; new **`POST /api/jobs/add-url`** (`tailor=False`, synchronous) just scrapes
++ detects + adds the job flagged `source="manual"`. A new **Add Job** nav tab hosts the
+paste box plus a "Your manual jobs" list, each row with a **Run via pipeline** button
+(→ `/api/applications/{id}/process`) and a match-score chip once tailored. The older
+`POST /api/pipeline/run-url` (add **and** tailor) stays as an API capability but the UI no
+longer calls it. Manual jobs are violet-badged and pinned to the top of the Jobs list.
+
 ## 2. Auto-scrape enabled (first live cron run)
 
 - Confirmed the cron was already installed (`0 6 */3 * *` → `scripts.scheduled_scrape`,

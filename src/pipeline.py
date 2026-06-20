@@ -307,14 +307,16 @@ def run_pipeline(keywords: str = None, location: str = None, template: str = Non
     return {"run_id": run_id, "stats": stats, "log": log_lines}
 
 
-def add_job_from_url(url: str, template: str = "default") -> dict:
-    """Build a job from a pasted job-posting URL and run it through the tailor.
+def add_job_from_url(url: str, template: str = "default", tailor: bool = True) -> dict:
+    """Build a job from a pasted job-posting URL.
 
     Reads the JD off the page, detects title/company via the LLM, stores the job
     with the same stable id scheme as the scraper (so re-pasting updates rather
-    than duplicates), then reuses run_single_job for the scored tailor + cover
-    letter. Returns the run_single_job result plus the detected title/company,
-    or {"error": ...} if the page couldn't be read.
+    than duplicates), and flags it `source="manual"`. With `tailor=True` it then
+    reuses run_single_job for the scored tailor + cover letter and returns that
+    result; with `tailor=False` it just adds the job (status "fetched") and
+    returns the detected metadata, leaving the user to run the pipeline manually.
+    Returns {"error": ...} if the page couldn't be read.
     """
     from src.tailor.engine import extract_job_meta
 
@@ -340,6 +342,9 @@ def add_job_from_url(url: str, template: str = "default") -> dict:
         "scraped_at": datetime.now().isoformat(),
         "status": "fetched",
     })
+
+    if not tailor:
+        return {"job_id": job_id, "title": title, "company": company, "status": "added"}
 
     result = run_single_job(job_id, template)
     result.update({"job_id": job_id, "title": title, "company": company})
