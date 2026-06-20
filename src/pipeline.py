@@ -134,23 +134,29 @@ def run_pipeline(keywords: str = None, location: str = None, template: str = Non
 
         # ── Step 1: Scrape jobs ────────────────────────────────────────────────
         scraper = JobScraper()
-        keyword_list = [k.strip() for k in keywords.split(",")]
+        keyword_list = [k.strip() for k in keywords.split(",") if k.strip()]
+        # Location is searched one value at a time (the scrapers take a single
+        # location per request), so split it like keywords. e.g.
+        # "Los Angeles, Remote, California" → three separate searches.
+        location_list = [l.strip() for l in location.split(",") if l.strip()] or ["Los Angeles"]
 
         all_new_jobs = []
-        for kw in keyword_list:
-            log(f"Scraping: '{kw}' in {location}")
-            # Search each keyword across all sources, 10 results each
-            jobs = scraper.scrape_all(kw, location, sources=sources_list, num_per_source=10)
+        for loc in location_list:
+            for kw in keyword_list:
+                log(f"Scraping: '{kw}' in {loc}")
+                # Search each keyword across all sources, 10 results each
+                jobs = scraper.scrape_all(kw, loc, sources=sources_list, num_per_source=10)
 
-            for job in jobs:
-                # Stable id derived from title+company so re-scraping the same job
-                # across runs hits upsert's ON CONFLICT (which preserves status) and
-                # does NOT create a duplicate or a second resume. Random UUIDs broke this.
-                job["id"] = scraper._job_key(job["title"], job["company"])
-                job["scraped_at"] = datetime.now().isoformat()
-                job["status"] = "new"
+                for job in jobs:
+                    # Stable id derived from title+company so re-scraping the same job
+                    # across runs hits upsert's ON CONFLICT (which preserves status) and
+                    # does NOT create a duplicate or a second resume. Random UUIDs broke this.
+                    # The same job found under multiple locations dedups to one id here.
+                    job["id"] = scraper._job_key(job["title"], job["company"])
+                    job["scraped_at"] = datetime.now().isoformat()
+                    job["status"] = "new"
 
-                all_new_jobs.append(job)
+                    all_new_jobs.append(job)
 
         log(f"Scraped {len(all_new_jobs)} unique jobs")
 
