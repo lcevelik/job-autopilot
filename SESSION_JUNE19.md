@@ -78,18 +78,69 @@ the same lock.
 - Note: a full pipeline run takes ~13h on the local Ollama box — fine for a 3-day cadence,
   but switch `TAILOR_MODEL` to a faster/cloud model if you ever need speed.
 
-## New / changed files
+## 8. Dedicated "Add Job" tab (split add vs. tailor)
+
+Reworked the paste flow into a 7th nav tab. `add_job_from_url` gained a `tailor`
+flag; **`POST /api/jobs/add-url`** (synchronous, `tailor=False`) just scrapes + detects
+title/company + adds the job flagged `source="manual"`. The tab has the paste box plus a
+"Your manual jobs" list, each row with a **Run via pipeline** button
+(→ `/api/applications/{id}/process`) and a match-score chip once tailored. Manual jobs get
+a violet badge + accent and are pinned to the top of the Jobs list.
+`POST /api/pipeline/run-url` (add **and** tailor) kept as an API capability, unused by UI.
+
+## 9. Stop tracking the SQLite DB
+
+`data/job_autopilot.db` changed every run, constantly dirtying the tree. Untracked it
+(`git rm --cached`) + gitignored `data/*.db` (+ wal/shm); `init_db()` already builds the
+schema and seeds settings on import, so a fresh clone auto-creates a ready DB (verified).
+Added `data/.gitkeep`. Trade-off noted: the 121 apps now live only on this box.
+
+## 10. systemd unit (install pending)
+
+Added `deploy/job-autopilot.service` (Restart=always, journal logging) + `deploy/
+install-service.sh`. Needs `sudo bash deploy/install-service.sh` (root) — **not yet run**;
+the app is still a manual `setsid python app.py` process, no boot/crash auto-restart.
+
+## 11. Summary voice auto-matched to the JD
+
+The 5 summary "voices" were half-wired: `pdf_gen` always rendered the `default` slot, so
+the category dropdown never affected output. Now **`select_summary_angle(jd, requirements)`**
+deterministically scores the 5 voices by signal phrases in the JD + extracted requirements
+and picks the best (fallback `default`); `tailor_resume` seeds the rendered slot with that
+voice so the model tailors the right angle. Recorded as `report.summary_angle`, logged,
+stored as the app's `template`, and shown as a chip in the app detail. Verified end-to-end:
+an "AI/ML Architect" JD selected `ai_ml` and rendered the ai_ml voice (score 0.759).
+Distribution across 126 stored JDs: ai_ml 45 / engineering 31 / management 33 / executive
+10 / default 7.
+
+## 12. Resume data gaps fixed (from LiborCevelik2026.pdf)
+
+Compared the master against the real PDF in `/media/server/Storage/Sync`. Master was missing
+the **Studio Mirage** job (Video Producer & Director, Prague 2005–2009), the entire
+**Awards & Recognition** section (Moonlight/Academy Award, Latin Grammy nom), and the
+**Illumination Experience (Hurlbut Visuals)** cert. Added all three to the master (backup at
+`data/master/resume.json.bak`) and added a **conditional awards render block** in `pdf_gen.py`
+(renders only when awards exist, so old apps stay clean). Verified by rendering a PDF.
+**Existing 121 apps are snapshots** — they won't show the new content until re-tailored
+(`scripts.regen_resumes`, ~13h on local LLM).
+
+## New / changed files (whole session)
 
 | File | Change |
 |------|--------|
-| `src/tailor/engine.py` | + `extract_job_meta(jd)` |
-| `src/pipeline.py` | + `add_job_from_url(url, template)` |
-| `app.py` | + `POST /api/pipeline/run-url` (`UrlRequest`) |
-| `static/index.html` | + "Paste a job link" card + `runUrl()` |
-| `scripts/scheduled_scrape.py` | + `fcntl` lock guard against overlapping runs |
+| `src/tailor/engine.py` | + `extract_job_meta`, `select_summary_angle`, summary-seed in `tailor_resume`, angle in scored loop |
+| `src/pipeline.py` | + `add_job_from_url` (with `tailor` flag), store `summary_angle` as template, log angle |
+| `app.py` | + `POST /api/pipeline/run-url`, `POST /api/jobs/add-url` |
+| `static/index.html` | Add Job tab + manual badges, summary-angle chip |
+| `scripts/scheduled_scrape.py` | `fcntl` lock guard |
+| `src/generator/pdf_gen.py` | conditional Awards & Recognition block |
+| `data/master/resume.json` | + Studio Mirage, awards, missing cert (gitignored) |
+| `.gitignore` | ignore logs, lock, `*.db` |
+| `deploy/job-autopilot.service`, `deploy/install-service.sh` | systemd unit + installer |
 
 ## Suggested next steps
 
-- Apply to the 46 strong-fit jobs (≥0.70) — Top Matches on the dashboard.
-- Enrich `data/master/resume.json` with granular tool keywords to lift partial-fit scores.
+- **Run `sudo bash deploy/install-service.sh`** to finish the systemd setup.
+- Optionally re-tailor the 121 apps so they get Studio Mirage + awards (`regen_resumes`, slow).
+- Apply to the strong-fit jobs (≥0.70) — Top Matches on the dashboard.
 - Optional: a textarea fallback to paste JD **text** directly for scrape-blocked sites.
