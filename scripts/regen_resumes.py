@@ -41,11 +41,17 @@ def _fab_count(tailored_repr, master_text):
 def main():
     args = sys.argv[1:]
     only_unscored = "unscored" in args
+    # "remaining": skip apps already re-tailored against the CURRENT master, detected
+    # by whether their stored resume carries a key the current master has but older
+    # tailorings lacked (here: "awards"). Lets an interrupted backfill resume without
+    # redoing finished resumes.
+    only_remaining = "remaining" in args
     nums = [int(a) for a in args if a.isdigit()]
     limit = nums[0] if nums else None
     template = get_setting("default_template", "default")
     master = json.load(open(MASTER))
     master_text = _flatten_text(master).lower()
+    fresh_keys = [k for k in ("awards",) if master.get(k)]
 
     where = "WHERE j.description IS NOT NULL AND j.description != ''"
     if only_unscored:
@@ -55,6 +61,16 @@ def main():
              f"FROM applications a JOIN jobs j ON a.job_id=j.id "
              f"{where} ORDER BY a.created_at DESC")
         rows = c.execute(q).fetchall()
+
+    if only_remaining and fresh_keys:
+        def _is_stale(repr_str):
+            try:
+                t = ast.literal_eval(repr_str) if isinstance(repr_str, str) else (repr_str or {})
+            except Exception:
+                return True  # unparseable → re-tailor it
+            return not all(t.get(k) for k in fresh_keys)
+        rows = [r for r in rows if _is_stale(r["tailored_resume"])]
+
     if limit:
         rows = rows[:limit]
 
